@@ -230,7 +230,7 @@ public class RuntimePermission {
             onAllAccepted(permissions);
         } else {
             if (activity instanceof FragmentActivity) {
-                FragmentActivity fragmentActivity = (FragmentActivity) activity;
+                final FragmentActivity fragmentActivity = (FragmentActivity) activity;
                 final PermissionFragment oldFragment = (PermissionFragment) fragmentActivity
                         .getSupportFragmentManager()
                         .findFragmentByTag(TAG);
