@@ -1,5 +1,6 @@
 package com.github.florent37.runtimepermission;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -30,7 +31,7 @@ public class RuntimePermission {
 
     private static final String TAG = "PERMISSION_FRAGMENT_WEEEEE";
 
-    private final Reference<FragmentActivity> activityReference;
+    private final Reference<Activity> activityReference;
 
     //The list of permissions we want to ask
     private final List<String> permissionsToRequest = new ArrayList<>();
@@ -51,7 +52,7 @@ public class RuntimePermission {
     };
     //endregion
 
-    public RuntimePermission(@Nullable final FragmentActivity activity) {
+    public RuntimePermission(@Nullable final Activity activity) {
         if (activity != null) {
             this.activityReference = new WeakReference<>(activity);
         } else {
@@ -64,7 +65,7 @@ public class RuntimePermission {
      * If not set or empty, the library will find all needed permissions to ask from manifest
      * You can call .request(permissions) after this method if you want to give permissions in a separate method
      */
-    public static RuntimePermission askPermission(@Nullable final FragmentActivity activity, String... permissions) {
+    public static RuntimePermission askPermission(@Nullable final Activity activity, String... permissions) {
         return new RuntimePermission(activity).request(permissions);
     }
 
@@ -86,7 +87,7 @@ public class RuntimePermission {
      * It goes to your application settings page for the user to enable permission again.
      */
     public void goToSettings() {
-        final FragmentActivity fragmentActivity = this.activityReference.get();
+        final Activity fragmentActivity = this.activityReference.get();
         if (fragmentActivity != null) {
             fragmentActivity.startActivity(new Intent(
                     Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -216,7 +217,7 @@ public class RuntimePermission {
      * In case you call `ask` without any permission, the method returns.
      */
     public void ask() {
-        final FragmentActivity activity = activityReference.get();
+        final Activity activity = activityReference.get();
         if (activity == null || activity.isFinishing()) {
             return;
         }
@@ -228,28 +229,55 @@ public class RuntimePermission {
         if (permissions.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.M || arePermissionsAlreadyAccepted(activity, permissions)) {
             onAllAccepted(permissions);
         } else {
-            final PermissionFragment oldFragment = (PermissionFragment) activity
-                    .getSupportFragmentManager()
-                    .findFragmentByTag(TAG);
+            if (activity instanceof FragmentActivity) {
+                FragmentActivity fragmentActivity = (FragmentActivity) activity;
+                final PermissionFragment oldFragment = (PermissionFragment) fragmentActivity
+                        .getSupportFragmentManager()
+                        .findFragmentByTag(TAG);
 
-            if (oldFragment != null) {
-                oldFragment.setListener(listener);
+                if (oldFragment != null) {
+                    oldFragment.setListener(listener);
+                } else {
+                    final PermissionFragment newFragment = PermissionFragment.newInstance(permissions);
+                    newFragment.setListener(listener);
+
+                    activity.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            fragmentActivity.getSupportFragmentManager()
+                                    .beginTransaction()
+                                    .add(newFragment, TAG)
+                                    .commitAllowingStateLoss();
+                            // change to .commitNowAllowingStateLoss() to see the crash
+                        }
+                    });
+
+                }
             } else {
-                final PermissionFragment newFragment = PermissionFragment.newInstance(permissions);
-                newFragment.setListener(listener);
+                final PermissionAndroidFragment oldFragment = (PermissionAndroidFragment) activity
+                        .getFragmentManager()
+                        .findFragmentByTag(TAG);
 
-                activity.runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        activity.getSupportFragmentManager()
-                                .beginTransaction()
-                                .add(newFragment, TAG)
-                                .commitAllowingStateLoss();
-                        // change to .commitNowAllowingStateLoss() to see the crash
-                    }
-                });
+                if (oldFragment != null) {
+                    oldFragment.setListener(listener);
+                } else {
+                    final PermissionAndroidFragment newFragment = PermissionAndroidFragment.newInstance(permissions);
+                    newFragment.setListener(listener);
 
+                    activity.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            activity.getFragmentManager()
+                                    .beginTransaction()
+                                    .add(newFragment, TAG)
+                                    .commitAllowingStateLoss();
+                            // change to .commitNowAllowingStateLoss() to see the crash
+                        }
+                    });
+
+                }
             }
+
         }
     }
 
